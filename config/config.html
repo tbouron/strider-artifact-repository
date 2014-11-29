@@ -1,0 +1,23 @@
+<div id="artifact" class="row-fluid">
+    <div class="span12">
+        <h2>Artifact repository config page</h2>
+        <p class="help-text">Configure here how the artifact repository should behave for this project</p>
+
+        <h3>File to save</h3>
+        <p>
+            <input type="text" ui-refresh="selectedTab" ng-model="config.fileToSave" />
+        </p>
+        <p class="help-text">
+            Type the file's path (from the root of the project) to save. This should be the exact name, e.g. my-project.zip
+        </p>
+
+        <h3>Maximum number of builds</h3>
+        <p>
+            <input type="text" ui-refresh="selectedTab" ng-model="config.maxBuilds" />
+        </p>
+        <p class="help-text">
+            Maximum number of build to save, 0 means unlimited.
+        </p>
+        <button ng-click="save()" class="btn btn-primary">Save</button>
+    </div>
+</div>

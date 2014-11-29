@@ -1,0 +1,35 @@
+{
+  "name": "strider-artifact-repository",
+  "version": "1.0.0",
+  "description": "Save and exposes artifacts built by strider CI",
+  "main": "webapp.js",
+  "scripts": {
+    "test": "mocha -R spec --recursive test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tbouron/strider-artifact-repository.git"
+  },
+  "keywords": [
+    "strider",
+    "plugin",
+    "artifact"
+  ],
+  "author": "Thomas Bouron",
+  "license": "GPL",
+  "dependencies": {},
+  "strider": {
+    "type": "job",
+    "id": "artifact-repository",
+    "title": "Artifact repository",
+    "worker": "worker.js",
+    "webapp": "webapp.js",
+    "icon": "icon.png",
+    "config": true
+  },
+  "devDependencies": {
+    "chai": "^1.9.1",
+    "mocha": "^1.20.1",
+    "sinon-chai": "^2.5.0"
+  }
+}
