@@ -20,22 +20,24 @@ module.exports = {
     //   req.pluginConfig() -> get the config for this plugin
     //   req.pluginConfig(config, cb(err)) -> set the config for this plugin
     // -----------------------------------------------------------
-    // TODO: Need help on this to provide auth for the endpoinds.
     routes: function (app, context) {
         var self = this;
         var model = self.model('artifact');
 
-        app.anon.get('history', function(req, res) {
+        app.get('history', function(req, res) {
             model.find({
                 project: util.format('%s/%s', req.params.org, req.params.repo)
             }).select('id project job version date')
             .sort({date: 'desc'})
             .lean()
             .exec(function(err, items) {
+                if (err) {
+                    return res.send(400, 'Impossible to get artifacts')
+                }
                 res.send(200, util.format('{"artifacts": %s}', JSON.stringify(items)));
             });
         });
-        app.anon.get('latest', function(req, res) {
+        app.get('latest', function(req, res) {
             model.findOne({
                 project: util.format('%s/%s', req.params.org, req.params.repo)
             }).select('id project job version date')
@@ -43,22 +45,18 @@ module.exports = {
             .lean()
             .exec(function(err, artifact) {
                 if (err) {
-                    var msg = util.format('No artifact for this project `%s`', req.params.repo);
-                    console.log(msg);
-                    return res.send(400, msg);
+                    return res.send(400, util.format('No artifact for this project `%s`', req.params.repo));
                 }
                 res.send(200, util.format('{"latest": %s}', JSON.stringify(artifact)));
             });
         });
-        app.anon.get('dl/:artifactid', function(req, res) {
+        app.get('dl/:artifactid', function(req, res) {
             model.findOne({
                 _id: req.params.artifactid,
                 project: util.format('%s/%s', req.params.org, req.params.repo)
             }, 'project version artifact', function(err, artifact) {
                 if (err) {
-                    var msg = util.format('Artifact ID `%s` does not exits', req.params.artifactid);
-                    console.log(msg);
-                    return res.send(400, msg);
+                    return res.send(400, util.format('Artifact ID `%s` does not exits', req.params.artifactid));
                 }
                 res.setHeader('Content-disposition', util.format('attachment; filename=%s', artifact.artifact.name));
                 res.setHeader('Content-type', 'application/zip, application/octet-stream');
