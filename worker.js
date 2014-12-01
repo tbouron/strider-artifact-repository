@@ -1,46 +1,104 @@
+// Dependencies
 var fs = require('fs');
 var util = require('util');
 var model = require('./model')('artifact');
 
-var success = function(message, start, context, done) {
-	var end = new Date();
-	context.logger.log(message);
-	context.status('command.done', {exitCode: 0, time: end, elapsed: end.getTime() - start.getTime()});
-	return done(null, true);
+// Helper class for the tasks
+function Action(name, context, callback) {
+	this.name = name;
+	this.context = context;
+	this.callback = callback;
 };
-var error = function(message, start, context, done) {
-	var end = new Date();
-	context.logger.error(message);
-	context.status('command.done', {exitCode: -1, time: end, elapsed: end.getTime() - start.getTime()});
-	return done(message, true);
-};
+Action.prototype = {
+	STATUS: {
+		SUCCESS: 0,
+		ERROR: 1,
+		WARNING: 2
+	},
 
-var saveToDb = function(context, config, job, done) {
-	console.log(context.__proto__);
+	start: function() {
+		this.start = new Date();
+		this.context.status('command.start', {command: this.name, time: this.start, plugin: this.context.plugin});
+		return this;
+	},
 
+	done: function(status, message) {
+		if (message) {
+			switch (status) {
+				case this.STATUS.SUCCESS:
+					this.log(message);
+					break;
+				case this.STATUS.WARNING:
+					this.warn(message);
+					break;
+				case this.STATUS.ERROR:
+					this.error(message);
+					break;
+			}
+		}
+		this.end = new Date();
+		this.context.status('command.done', {exitCode: status, time: this.end, elapsed: this.end.getTime() - this.start.getTime()});
 
-	var start = new Date();
-	context.status('command.start', { command: 'Save artifact to repository', time: start, plugin: context.plugin });
+		if (this.callback) {
+			this.callback(status, message);
+		}
+	},
 
-	if (!config.fileToSave) {
-		return error('No file to save. Please verify your project configuration -> Skip', start, context, done);
+	log: function(message) {
+		this.context.logger.log(message);
+		this.context.out(message, 'log');
+		return this;
+	},
+
+	warn: function(message) {
+		this.context.logger.warn(message);
+		this.context.out(message, 'log');
+		return this;
+	},
+
+	error: function(message) {
+		this.context.logger.error(message);
+		this.context.out(message, 'error');
+		return this;
 	}
+};
+
+// Save the newly generated artifact into MongoDB
+function saveTask(context, config, job, done) {
+	// Register action.
+	var saveAction = new Action('Save artifact to repository', context, function(status, message) {
+		if (status === saveAction.STATUS.SUCCESS) {
+			cleanTask(context, config, job, done);
+		} else {
+			done(message, true);
+		}
+	});
+
+	// Start the save action.
+	saveAction.start();
+
+	// Check if there is a file to save within the configuration.
+	if (!config.fileToSave) {
+		return saveAction.done(saveAction.STATUS.ERROR, 'No file to save. Please verify your project configuration -> Abort');
+	}
+	// Check if the file exists.
 	var filePath = context.dataDir + '/' + config.fileToSave;
 	if (!fs.existsSync(filePath)) {
-		return error(util.format('The file to save: %s does not exist -> Abort', filePath), start, context, done);
+		return saveAction.done(saveAction.STATUS.ERROR, util.format('The file to save: %s does not exist -> Abort', config.fileToSave));
 	}
 	var file = fs.readFileSync(filePath);
-
-	var packagePath = context.dataDir + '/package.json';
+	// Check the version of the project.
+	// TODO: Need to modify this to support other types of project.
+	var packageFile = 'package.json';
+	var packagePath = context.dataDir + '/' + packageFile;
 	if (!fs.existsSync(packagePath)) {
-		return error(util.format('The package.json file does not exists within the project %s -> Abort', job.project.name), start, context, done);
+		return saveAction.done(saveAction.STATUS.ERROR, util.format('The package.json file does not exist within the project %s -> Abort', job.project.name));
 	}
 	var package = require(packagePath);
 	if (!package.version) {
-		return error(util.format('Cannot read project version from: %s -> Abort', filePath), start, context, done);
+		return saveAction.done(saveAction.STATUS.ERROR, util.format('Cannot read project version from: %s -> Abort', packageFile));
 	}
 
-	// Save the new artifact
 	var artifact = new model({
 		project: job.project.name,
 		job: job._id,
@@ -51,14 +109,57 @@ var saveToDb = function(context, config, job, done) {
 			data: file
 		}
 	});
+
+	// Save the new artifact
 	artifact.save(function (err) {
 		if (err) {
-			return error(util.format('Impossible to save artifact: %s', filePath), start, context, done);
-		} else {
-			return success(util.format('Artifact %s save succesfully', filePath), start, context, done);
+			return saveAction.done(saveAction.STATUS.ERROR, util.format('Impossible to save artifact: %s', config.fileToSave));
 		}
+		saveAction.done(saveAction.STATUS.SUCCESS, util.format('Artifact %s save succesfully', config.fileToSave));
 	});
-};
+}
+
+// Clean old artifacts, as per as the configuration.
+function cleanTask(context, config, job, done) {
+	// Register action.
+	var cleanAction = new Action('Clean old artifacts', context, function(status, message) {
+		done(status != cleanAction.STATUS.SUCCESS ? message : null, true);
+	});
+
+	// Remove old artifacts, if we have to.
+	if (config.maxBuilds > 0) {
+		// Start the clean action.
+		cleanAction.start();
+
+		model.count({project: job.project.name}, function(err, count) {
+			if (err) {
+				return cleanAction.done(cleanAction.STATUS.ERROR, 'Cannot determine number of artifact to clean -> Abort');
+			}
+			if (count > config.maxBuilds) {
+				model.find().select('_id').sort({date: 'asc'}).limit(count - config.maxBuilds).exec(function(err, docs) {
+					if (err) {
+						return cleanAction.done(cleanAction.STATUS.ERROR, 'Cannot retrieve artifacts to clean -> Abort');
+					}
+					var ids = [];
+					for (var doc in docs) {
+						ids.push(docs[doc]._id);
+					}
+					console.log(ids);
+					model.remove({_id: {$in: ids}}, function(err) {
+						if (err) {
+							return cleanAction.done(cleanAction.STATUS.ERROR, 'Cannot remove artifacts to clean -> Abort');
+						}
+						return cleanAction.done(cleanAction.STATUS.SUCCESS, 'Cleaning succesfully');
+					});
+				});
+			} else {
+				return cleanAction.done(cleanAction.STATUS.SUCCESS, 'Nothing to clean');
+			}
+		});
+	} else {
+		done(null, true);
+	}
+}
 
 module.exports = {
 	// Initialize the plugin for a job
@@ -70,7 +171,7 @@ module.exports = {
 	init: function (config, job, context, cb) {
 		return cb(null, {
 			deploy: function (context, done) {
-				saveToDb(context, config, job, done);
+				saveTask(context, config, job, done);
 			}
 		});
 	}
