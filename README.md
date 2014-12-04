@@ -1,5 +1,7 @@
 # strider-artifact-repository
 
+![Build Status](http://tbouron-ci.herokuapp.com/tbouron/strider-artifact-repository/badge?branch=develop)
+
 Save defined artifacts into MongoDB for each job and project on the deploy phase. Also expose an API to retrieve the artifacts history and download them.
 
 **IMPORTANT: This plugin curently support NodeJs projects only.**
