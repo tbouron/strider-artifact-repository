@@ -30,5 +30,7 @@ describe('Worker artifact-repository', function() {
 		setup.deploy();
 
 		expect(tasks.save.calledOnce).ok;
+		
+		tasks.save.restore();
 	});
 });
