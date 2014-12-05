@@ -13,7 +13,15 @@ module.exports = {
 	init: function (config, job, context, cb) {
 		return cb(null, {
 			deploy: function (context, done) {
-				tasks.save(context, config, job, done);
+				tasks.save(context, config, job, function(status, message) {
+					if (status === tasks.status.SUCCESS) {
+						tasks.clean(context, config, job, function(status, message) {
+							done(status !== tasks.status.SUCCESS ? message : null, true);
+						});
+					} else {
+						done(message, true);
+					}
+				});
 			}
 		});
 	}
