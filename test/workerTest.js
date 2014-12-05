@@ -1,3 +1,6 @@
+'use strict';
+
+/* jshint -W079: false */
 var sinon = require('sinon');
 var chai = require('chai');
 var expect = chai.expect;
@@ -30,7 +33,7 @@ describe('Worker artifact-repository', function() {
 		setup.deploy();
 
 		expect(tasks.save.calledOnce).ok;
-		
+
 		tasks.save.restore();
 	});
 });

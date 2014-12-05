@@ -1,3 +1,6 @@
+'use strict';
+
+/* jshint -W079: false */
 var sinon = require('sinon');
 var chai = require('chai');
 var expect = chai.expect;
@@ -5,7 +8,6 @@ chai.use(require('sinon-chai'));
 
 var util = require('util');
 var tasks = require('../../lib');
-var action = require('../../lib/action');
 
 describe('Task module', function() {
 
@@ -51,7 +53,7 @@ describe('Task module', function() {
 			});
 			it('file defined by fileToSave config parameter, is missing', function(done) {
 				config.fileToSave = 'my-file-to-save.zip';
-				
+
 				tasks.save(context, config, job, function(err) {
 					expect(err).to.exist;
 					expect(err).to.equal(util.format('The file to save: %s does not exist -> Abort', config.fileToSave));
@@ -61,7 +63,7 @@ describe('Task module', function() {
 			it('file package.json of the build node project is missing', function(done) {
 				config.fileToSave = 'index.js';
 				context.dataDir = './lib';
-				
+
 				tasks.save(context, config, job, function(err) {
 					expect(err).to.exist;
 					expect(err).to.equal(util.format('The package.json file does not exist within the project %s -> Abort', job.project.name));
@@ -71,7 +73,7 @@ describe('Task module', function() {
 			it('version within package.json is missing', function(done) {
 				config.fileToSave = 'package.json';
 				context.dataDir = './test/fixture';
-				
+
 				tasks.save(context, config, job, function(err) {
 					expect(err).to.exist;
 					expect(err).to.equal(util.format('Cannot read project version from: %s -> Abort', 'package.json'));

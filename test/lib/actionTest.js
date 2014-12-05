@@ -1,3 +1,6 @@
+'use strict';
+
+/* jshint -W079: false */
 var sinon = require('sinon');
 var chai = require('chai');
 var expect = chai.expect;
@@ -6,13 +9,37 @@ chai.use(require('sinon-chai'));
 var Action = require('../../lib/action');
 
 describe('Action class', function() {
+	var context = {
+		plugin: 'my-test-plugin',
+		status: sinon.stub(),
+		out: sinon.stub(),
+		logger: {
+			log: sinon.stub(),
+			warn: sinon.stub(),
+			error: sinon.stub()
+		}
+	};
+	var callback = sinon.stub();
+	var action = null;
+
+	beforeEach(function() {
+		context.status.reset();
+		context.out.reset();
+		context.logger.log.reset();
+		context.logger.warn.reset();
+		context.logger.error.reset();
+		callback.reset();
+		action = new Action('My Test action', context, callback);
+	});
+
 	describe('#constructor()', function() {
 		it('returns new object event if new is not used', function() {
+			/* jshint newcap: false */
 			var functionAction = Action('My Test action as function', sinon.stub(), sinon.stub());
 			var objectAction = new Action('My Test action as object', sinon.stub(), sinon.stub());
 
 			expect(functionAction).to.be.a('object');
-			expect(functionAction).to.be.a('object');
+			expect(objectAction).to.be.a('object');
 		});
 		it('throws an error if the name is null/undefined/empty', function() {
 			var names = [undefined, null, ''];
@@ -20,7 +47,7 @@ describe('Action class', function() {
 			for (var i in names) {
 				var ex = null;
 				try {
-					new Action(names[i], sinon.stub(), sinon.stub());
+					var obj = new Action(names[i], sinon.stub(), sinon.stub());
 				} catch (e) {
 					ex = e;
 				}
@@ -30,61 +57,27 @@ describe('Action class', function() {
 	});
 
 	describe('#start()', function() {
-		var context = {};
-		var testAction = null;
-
-		beforeEach(function() {
-			context = {
-				plugin: 'my-test-plugin',
-				status: sinon.stub(),
-				out: sinon.stub(),
-				logger: {
-					log: sinon.stub(),
-					warn: sinon.stub(),
-					error: sinon.stub()
-				}
-			};
-			testAction = new Action('My Test action as object', context, sinon.stub());
-		});
 		it('returns itself for chaining', function() {
-			expect(testAction.start()).to.equal(testAction);
+			expect(action.start()).to.equal(action);
 		});
 		it('calls context.status() once with correct parameters', function() {
-			testAction.start()
+			action.start()
 
 			var args = context.status.args[0];
 
 			expect(context.status.calledOnce).ok;
 			expect(args[0]).to.equal('command.start');
-			expect(args[1]).to.have.property('command', 'My Test action as object');
+			expect(args[1]).to.have.property('command', 'My Test action');
 			expect(args[1]).to.have.property('time').that.is.an('date');
 			expect(args[1]).to.have.property('plugin', context.plugin);
 		});
 	});
 
 	describe('#done()', function() {
-		var context = {};
-		var callback = null;
-		var testAction = null;
-
-		beforeEach(function() {
-			context = {
-				plugin: 'my-test-plugin',
-				status: sinon.stub(),
-				out: sinon.stub(),
-				logger: {
-					log: sinon.stub(),
-					warn: sinon.stub(),
-					error: sinon.stub()
-				}
-			};
-			callback = sinon.stub();
-			testAction = new Action('My Test action as object', context, callback);
-		});
 		it('throws an error if the start() was not invoked', function() {
 			var ex = null;
 			try {
-				testAction.done(testAction.STATUS.SUCCESS, 'A done message');
+				action.done(action.STATUS.SUCCESS, 'A done message');
 			} catch (e) {
 				ex = e;
 			}
@@ -92,11 +85,11 @@ describe('Action class', function() {
 		});
 		describe('logs', function() {
 			beforeEach(function() {
-				testAction.start();
+				action.start();
 			});
 			it('an log message if status === STATUS.SUCCESS', function() {
 				var message = 'A done message for success';
-				testAction.done(testAction.STATUS.SUCCESS, message);
+				action.done(action.STATUS.SUCCESS, message);
 
 				expect(context.logger.log.called).ok;
 				expect(context.logger.log.calledWithExactly(message));
@@ -105,7 +98,7 @@ describe('Action class', function() {
 			});
 			it('an warn message if status === STATUS.WARNING', function() {
 				var message = 'A done message for warning';
-				testAction.done(testAction.STATUS.WARNING, message);
+				action.done(action.STATUS.WARNING, message);
 
 				expect(context.logger.warn.called).ok;
 				expect(context.logger.warn.calledWithExactly(message));
@@ -114,7 +107,7 @@ describe('Action class', function() {
 			});
 			it('an error message if status === STATUS.ERROR', function() {
 				var message = 'A done message for error';
-				testAction.done(testAction.STATUS.ERROR, message);
+				action.done(action.STATUS.ERROR, message);
 
 				expect(context.logger.error.called).ok;
 				expect(context.logger.error.calledWithExactly(message));
@@ -126,55 +119,39 @@ describe('Action class', function() {
 
 				for (var i in messages) {
 					if (i > 0) {
-						testAction.start();
+						action.start();
 					}
-					testAction.done(testAction.STATUS.SUCCESS, messages[i]);
+					action.done(action.STATUS.SUCCESS, messages[i]);
 
 					expect(context.logger.log.called).not.ok;
 				}
 			});
 		});
 		it('calls context.status() with correct parameters', function() {
-			testAction.start().done(testAction.STATUS.SUCCESS, '');
+			action.start().done(action.STATUS.SUCCESS, '');
 
 			var args = context.status.lastCall.args;
 
 			expect(context.status.called).ok;
 			expect(args[0]).to.equal('command.done');
-			expect(args[1]).to.have.property('exitCode', testAction.STATUS.SUCCESS);
+			expect(args[1]).to.have.property('exitCode', action.STATUS.SUCCESS);
 			expect(args[1]).to.have.property('time').that.is.an('date');
 			expect(args[1]).to.have.property('elapsed').that.is.an('number');
 		});
 		it('calls the callback() with correct parameters', function() {
 			var message = 'My done message';
-			testAction.start().done(testAction.STATUS.SUCCESS, message);
+			action.start().done(action.STATUS.SUCCESS, message);
 
 			expect(callback.calledOnce).ok
-			expect(callback.calledWithExactly(testAction.STATUS.SUCCESS, message));
+			expect(callback.calledWithExactly(action.STATUS.SUCCESS, message));
 		});
 	});
 
 	describe('#log()', function() {
-		var context = {};
-		var testAction = null;
-
-		beforeEach(function() {
-			context = {
-				plugin: 'my-test-plugin',
-				status: sinon.stub(),
-				out: sinon.stub(),
-				logger: {
-					log: sinon.stub(),
-					warn: sinon.stub(),
-					error: sinon.stub()
-				}
-			};
-			testAction = new Action('My Test action as object', context, sinon.stub());
-		});
 		it('throws an error if the start() was not invoked', function() {
 			var ex = null;
 			try {
-				testAction.log('A log message');
+				action.log('A log message');
 			} catch (e) {
 				ex = e;
 			}
@@ -182,13 +159,13 @@ describe('Action class', function() {
 		});
 		it('returns itself for chaining', function() {
 			var message = 'A log message';
-			var res = testAction.start().log(message);
+			var res = action.start().log(message);
 
-			expect(res).to.equal(testAction);
+			expect(res).to.equal(action);
 		});
 		it('calls context.logger.log() and context.out() with correct parameters', function() {
 			var message = 'A log message';
-			testAction.start().log(message);
+			action.start().log(message);
 
 			expect(context.logger.log.calledOnce).ok;
 			expect(context.logger.log.calledWithExactly(message));
@@ -198,26 +175,10 @@ describe('Action class', function() {
 	});
 
 	describe('#warn()', function() {
-		var context = {};
-		var testAction = null;
-
-		beforeEach(function() {
-			context = {
-				plugin: 'my-test-plugin',
-				status: sinon.stub(),
-				out: sinon.stub(),
-				logger: {
-					log: sinon.stub(),
-					warn: sinon.stub(),
-					error: sinon.stub()
-				}
-			};
-			testAction = new Action('My Test action as object', context, sinon.stub());
-		});
 		it('throws an error if the start() was not invoked', function() {
 			var ex = null;
 			try {
-				testAction.warn('A warn message');
+				action.warn('A warn message');
 			} catch (e) {
 				ex = e;
 			}
@@ -225,13 +186,13 @@ describe('Action class', function() {
 		});
 		it('returns itself for chaining', function() {
 			var message = 'A warn message';
-			var res = testAction.start().warn(message);
+			var res = action.start().warn(message);
 
-			expect(res).to.equal(testAction);
+			expect(res).to.equal(action);
 		});
 		it('calls context.logger.warn() and context.out() with correct parameters', function() {
 			var message = 'A warn message';
-			testAction.start().warn(message);
+			action.start().warn(message);
 
 			expect(context.logger.warn.calledOnce).ok;
 			expect(context.logger.warn.calledWithExactly(message));
@@ -241,26 +202,10 @@ describe('Action class', function() {
 	});
 
 	describe('#error()', function() {
-		var context = {};
-		var testAction = null;
-
-		beforeEach(function() {
-			context = {
-				plugin: 'my-test-plugin',
-				status: sinon.stub(),
-				out: sinon.stub(),
-				logger: {
-					log: sinon.stub(),
-					warn: sinon.stub(),
-					error: sinon.stub()
-				}
-			};
-			testAction = new Action('My Test action as object', context, sinon.stub());
-		});
 		it('throws an error if the start() was not invoked', function() {
 			var ex = null;
 			try {
-				testAction.error('An error message');
+				action.error('An error message');
 			} catch (e) {
 				ex = e;
 			}
@@ -268,13 +213,13 @@ describe('Action class', function() {
 		});
 		it('returns itself for chaining', function() {
 			var message = 'An error message';
-			var res = testAction.start().error(message);
+			var res = action.start().error(message);
 
-			expect(res).to.equal(testAction);
+			expect(res).to.equal(action);
 		});
 		it('calls context.logger.error() and context.out() with correct parameters', function() {
 			var message = 'A log message';
-			testAction.start().error(message);
+			action.start().error(message);
 
 			expect(context.logger.error.calledOnce).ok;
 			expect(context.logger.error.calledWithExactly(message));
