@@ -8,18 +8,24 @@ chai.use(require('sinon-chai'));
 
 var fs = require('fs');
 var util = require('util');
-var mongoose = require('mongoose');
-var mockgoose = require('mockgoose');
 
-mockgoose(mongoose);
+// Objects
+var model = require('../../model').Artifact;
+model.prototype.save = sinon.stub();
+model.count = sinon.stub();
+model.exec = sinon.stub();
+model.remove = sinon.stub();
+model.find = sinon.stub().returns(model);
+model.select = sinon.stub().returns(model);
+model.sort = sinon.stub().returns(model);
+model.limit = sinon.stub().returns(model);
 
-var tasks = require('../../lib');
-var models = require('../../model');
+describe('Tasks module', function() {
 
-describe('Task module', function() {
-	var config = null,
-		context = null,
-		job = null;
+	var config = null;
+	var context = null;
+	var job = null;
+	var tasks = null;
 
 	beforeEach(function() {
 		config = {};
@@ -40,19 +46,44 @@ describe('Task module', function() {
 			_id: 'sdf43265uysergrdeg5423',
 			created: new Date().getTime()
 		};
-	});
-	afterEach(function() {
-		mockgoose.reset();
+
+		model.prototype.save.reset();
+		model.count.reset();
+		model.exec.reset();
+		model.remove.reset();
+		model.find.reset();
+		model.select.reset();
+		model.sort.reset();
+		model.limit.reset();
+
+		tasks = new require('../../lib')(model);
 	});
 
-	it('exposes 2 functions', function() {
-		expect(tasks).to.have.keys(['save', 'clean', 'status']);
-		expect(tasks.save).to.be.a('function');
-		expect(tasks.clean).to.be.a('function');
-		expect(tasks.status).to.be.a('object');
+	describe('#constructor()', function() {
+		it('throws an error if a model is not passed', function() {
+			var ex = null;
+			try {
+				new require('../../lib')();
+			} catch (e) {
+				ex = e;
+			}
+			expect(ex).to.exist();
+		});
+		it('exposes 2 functions and a enum', function() {
+			expect(tasks).to.have.keys(['save', 'clean', 'status']);
+			expect(tasks.save).to.be.a('function');
+			expect(tasks.clean).to.be.a('function');
+			expect(tasks.status).to.be.a('object');
+		});
 	});
 
 	describe('#save()', function() {
+		var errorMessage = 'My test error message';
+
+		beforeEach(function() {
+			model.prototype.save.yields(errorMessage);
+		});
+
 		describe('logs an error if', function() {
 			it('fileToSave config parameter is missing', function(done) {
 				tasks.save(context, config, job, function(status, err) {
@@ -94,38 +125,50 @@ describe('Task module', function() {
 					done();
 				});
 			});
-		});
-
-		describe('otherwise', function() {
-			var fileName = 'action.js';
-			var packageJson = JSON.parse(fs.readFileSync('./package.json'));
-
-			beforeEach(function() {
-				config.fileToSave = 'lib/' + fileName;
+			it('model.save() method returns an error', function(done) {
+				config.fileToSave = 'lib/action.js';
 				context.dataDir = '.';
-			});
 
-			it('it saved a new artifact, based on given parameters', function(done) {
 				tasks.save(context, config, job, function(status, message) {
-					models.Artifact.find(function(err, docs) {
-						if (err) {
-							done(err);
-						}
-						expect(docs.length).to.equal(1);
-						var artifact = docs[0];
-						expect(artifact).to.be.a('object');
-						expect(artifact.project).to.equal(job.project.name);
-						expect(artifact.job).to.equal(job._id);
-						expect(artifact.version).to.equal(packageJson.version);
-						expect(artifact.date.getTime()).to.equal(new Date(job.created).getTime());
-						expect(artifact.artifact).to.be.a('object');
-						expect(artifact.artifact.name).to.equal(fileName);
-						done();
-					});
+					expect(model.prototype.save.calledOnce).ok;
+					expect(status).to.equal(tasks.status.ERROR);
+					expect(message).to.exist;
+					expect(message).to.equal(util.format('Impossible to save artifact: %s', config.fileToSave));
+					done();
 				});
 			});
 		});
+
+		it('saves an artifact based on the given configuration', function(done) {
+			model.prototype.save.yields();
+
+			var fileName = 'action.js';
+			var packageJson = JSON.parse(fs.readFileSync('./package.json'));
+
+			config.fileToSave = 'lib/' + fileName;
+			context.dataDir = '.';
+
+			tasks.save(context, config, job, function(status, message) {
+				expect(model.prototype.save.calledOnce).ok;
+
+				var artifact = model.prototype.save.thisValues[0];
+				expect(artifact).to.be.a('object');
+				expect(artifact.project).to.equal(job.project.name);
+				expect(artifact.job).to.equal(job._id);
+				expect(artifact.version).to.equal(packageJson.version);
+				expect(artifact.date.getTime()).to.equal(new Date(job.created).getTime());
+				expect(artifact.artifact).to.be.a('object');
+				expect(artifact.artifact.name).to.equal(fileName);
+
+				expect(status).to.equal(tasks.status.SUCCESS);
+				expect(message).to.exist;
+				expect(message).to.equal(util.format('Artifact %s save succesfully', config.fileToSave));
+
+				done();
+			});
+		});
 	});
+
 	describe('#clean()', function() {
 		describe('does nothing if', function() {
 			it('maxBuilds configuration parameter is missing or set to 0', function(done) {
@@ -139,71 +182,86 @@ describe('Task module', function() {
 			it('number of saved artifacts is less than maxBuilds configuration parameter', function(done) {
 				config.maxBuilds = 5;
 
-				var artifacts = [];
-				for (var i = 0; i < config.maxBuild - 1; i++) {
-					artifacts.push({
-						project: job.project.name,
-						job: job._id,
-						version: i,
-						date: new Date(job.created),
-						artifact: {
-							name: config.fileToSave.split('/').pop(),
-							data: null
-						}
-					});
-				}
+				model.count.yields(null, config.maxBuilds - 1);
 
-				models.Artifact.create(artifacts, function(err, results) {
-					if (err) {
-						done(err);
-					}
-					tasks.clean(context, config, job, function(status, message) {
-						expect(status).to.equal(tasks.status.SUCCESS);
-						expect(message).to.exist;
-						expect(message).to.equal('Nothing to clean');
-						done();
-					});
-				});
-			});
-		});
-
-		/*
-		it('removes the excess if number of saved artifacts is greater than maxBuilds configuration parameter', function(done) {
-			config.maxBuilds = 5;
-
-			var offset = 2;
-			var artifacts = [];
-			for (var i = 0; i < config.maxBuild + offset; i++) {
-				artifacts.push({
-					project: job.project.name,
-					job: job._id,
-					version: i,
-					date: new Date(job.created),
-					artifact: {
-						name: config.fileToSave.split('/').pop(),
-						data: null
-					}
-				});
-			}
-
-			models.Artifact.create(artifacts, function(err, results) {
-				if (err) {
-					done(err);
-				}
 				tasks.clean(context, config, job, function(status, message) {
 					expect(status).to.equal(tasks.status.SUCCESS);
 					expect(message).to.exist;
-					expect(message).to.equal('Cleaning succesfully');
-					models.Artifact.find(function(err, docs) {
-						if (err) {
-							done(err);
-						}
-						expect(docs.length).to.equal(config.maxBuilds);
-						done();
-					});
+					expect(message).to.equal('Nothing to clean');
+					done();
 				});
 			});
 		});
-		*/
+		describe('logs an error if', function() {
+			var offset = 2;
+
+			beforeEach(function() {
+				config.maxBuilds = 5;
+			});
+
+			it('MongoDB cannot get the model count', function(done) {
+				model.count.yields('Error', config.maxBuilds + offset);
+
+				tasks.clean(context, config, job, function(status, message) {
+					expect(status).to.equal(tasks.status.ERROR);
+					expect(message).to.exist;
+					expect(message).to.equal('Cannot determine number of artifact to clean -> Abort');
+					done();
+				});
+			});
+			it('MongoDB cannot get models to remove', function(done) {
+				model.count.yields(null, config.maxBuilds + offset);
+				model.exec.yields('Error');
+
+				tasks.clean(context, config, job, function(status, message) {
+					expect(status).to.equal(tasks.status.ERROR);
+					expect(message).to.exist;
+					expect(message).to.equal('Cannot retrieve artifacts to clean -> Abort');
+					done();
+				});
+			});
+			it('MongoDB cannot remove models', function(done) {
+				model.count.yields(null, config.maxBuilds + offset);
+				model.exec.yields(null, []);
+				model.remove.yields('Error');
+
+				tasks.clean(context, config, job, function(status, message) {
+					expect(status).to.equal(tasks.status.ERROR);
+					expect(message).to.exist;
+					expect(message).to.equal('Cannot remove artifacts to clean -> Abort');
+					done();
+				});
+			});
+		});
+		it('removes artifacts based on the configuration', function(done) {
+			var offset = 2;
+
+			config.maxBuilds = 5;
+
+			var ids = [];
+			var inIds = [];
+			for (var i = 0; i < offset; i++) {
+				ids.push({_id: i});
+				inIds.push(i);
+			}
+
+			model.count.yields(null, config.maxBuilds + offset);
+			model.exec.yields(null, ids);
+			model.remove.yields();
+
+			tasks.clean(context, config, job, function(status, message) {
+				expect(status).to.equal(tasks.status.SUCCESS);
+				expect(message).to.exist;
+				expect(message).to.equal('Cleaning succesfully');
+
+				expect(model.limit.calledOnce).ok;
+				expect(model.limit.calledWith(offset)).ok;
+
+				expect(model.remove.calledOnce).ok;
+				expect(model.remove.calledWith({_id: {$in: inIds}}));
+
+				done();
+			});
+		});
 	});
 });

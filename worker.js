@@ -1,7 +1,10 @@
 'use strict';
 
 // Dependencies
-var tasks = require('./lib');
+var models = require('./model')
+
+// Objects
+var tasks = new require('./lib')(models.Artifact);
 
 module.exports = {
 	// Initialize the plugin for a job

@@ -8,7 +8,7 @@ chai.use(require('sinon-chai'));
 
 var Action = require('../../lib/action');
 
-describe('Action class', function() {
+describe('Action module', function() {
 	var context = {
 		plugin: 'my-test-plugin',
 		status: sinon.stub(),

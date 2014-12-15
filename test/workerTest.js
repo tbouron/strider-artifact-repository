@@ -7,9 +7,9 @@ var expect = chai.expect;
 chai.use(require('sinon-chai'));
 
 var worker = require('../worker.js');
-var tasks = require('../lib');
+var tasks = new require('../lib')(sinon.stub());
 
-describe('Worker artifact-repository', function() {
+describe('Worker module', function() {
 	var work = null;
 
 	beforeEach(function(done) {
@@ -25,15 +25,5 @@ describe('Worker artifact-repository', function() {
 
 		expect(setup).to.have.property('deploy');
 		expect(setup.deploy).to.be.a('function');
-	});
-	it('calls save() task', function() {
-		sinon.stub(tasks, 'save');
-		var setup = work();
-
-		setup.deploy();
-
-		expect(tasks.save.calledOnce).ok;
-
-		tasks.save.restore();
 	});
 });
