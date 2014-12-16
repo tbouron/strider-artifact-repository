@@ -1,3 +1,5 @@
-module.exports = function(model){
-	return require('./' + model);
+'use strict';
+
+module.exports = {
+	Artifact: require('./artifact')
 };
