@@ -12,22 +12,21 @@ describe('Action module', function() {
 	var context = {
 		plugin: 'my-test-plugin',
 		status: sinon.stub(),
-		out: sinon.stub(),
-		logger: {
-			log: sinon.stub(),
-			warn: sinon.stub(),
-			error: sinon.stub()
-		}
+		out: sinon.stub()
 	};
 	var callback = sinon.stub();
 	var action = null;
 
+	sinon.spy(console, 'log');
+	sinon.spy(console, 'warn');
+	sinon.spy(console, 'error');
+
 	beforeEach(function() {
 		context.status.reset();
 		context.out.reset();
-		context.logger.log.reset();
-		context.logger.warn.reset();
-		context.logger.error.reset();
+		console.log.reset();
+		console.warn.reset();
+		console.error.reset();
 		callback.reset();
 		action = new Action('My Test action', context, callback);
 	});
@@ -51,7 +50,7 @@ describe('Action module', function() {
 				} catch (e) {
 					ex = e;
 				}
-				expect(ex).to.exist();
+				expect(ex).to.exist;
 			}
 		});
 	});
@@ -81,7 +80,7 @@ describe('Action module', function() {
 			} catch (e) {
 				ex = e;
 			}
-			expect(ex).to.exist();
+			expect(ex).to.exist;
 		});
 		describe('logs', function() {
 			beforeEach(function() {
@@ -91,8 +90,8 @@ describe('Action module', function() {
 				var message = 'A done message for success';
 				action.done(action.STATUS.SUCCESS, message);
 
-				expect(context.logger.log.called).ok;
-				expect(context.logger.log.calledWithExactly(message));
+				expect(console.log.called).ok;
+				expect(console.log.calledWithExactly(message));
 				expect(context.out.called).ok
 				expect(context.out.calledWithExactly(message, 'log')).ok;
 			});
@@ -100,8 +99,8 @@ describe('Action module', function() {
 				var message = 'A done message for warning';
 				action.done(action.STATUS.WARNING, message);
 
-				expect(context.logger.warn.called).ok;
-				expect(context.logger.warn.calledWithExactly(message));
+				expect(console.warn.called).ok;
+				expect(console.warn.calledWithExactly(message));
 				expect(context.out.called).ok
 				expect(context.out.calledWithExactly(message, 'log')).ok;
 			});
@@ -109,8 +108,8 @@ describe('Action module', function() {
 				var message = 'A done message for error';
 				action.done(action.STATUS.ERROR, message);
 
-				expect(context.logger.error.called).ok;
-				expect(context.logger.error.calledWithExactly(message));
+				expect(console.error.called).ok;
+				expect(console.error.calledWithExactly(message));
 				expect(context.out.called).ok
 				expect(context.out.calledWithExactly(message, 'error')).ok;
 			});
@@ -123,7 +122,7 @@ describe('Action module', function() {
 					}
 					action.done(action.STATUS.SUCCESS, messages[i]);
 
-					expect(context.logger.log.called).not.ok;
+					expect(console.log.called).not.ok;
 				}
 			});
 		});
@@ -155,7 +154,7 @@ describe('Action module', function() {
 			} catch (e) {
 				ex = e;
 			}
-			expect(ex).to.exist();
+			expect(ex).to.exist;
 		});
 		it('returns itself for chaining', function() {
 			var message = 'A log message';
@@ -167,8 +166,8 @@ describe('Action module', function() {
 			var message = 'A log message';
 			action.start().log(message);
 
-			expect(context.logger.log.calledOnce).ok;
-			expect(context.logger.log.calledWithExactly(message));
+			expect(console.log.calledOnce).ok;
+			expect(console.log.calledWithExactly(message));
 			expect(context.out.calledOnce).ok
 			expect(context.out.calledWithExactly(message, 'log')).ok;
 		})
@@ -182,7 +181,7 @@ describe('Action module', function() {
 			} catch (e) {
 				ex = e;
 			}
-			expect(ex).to.exist();
+			expect(ex).to.exist;
 		});
 		it('returns itself for chaining', function() {
 			var message = 'A warn message';
@@ -194,8 +193,8 @@ describe('Action module', function() {
 			var message = 'A warn message';
 			action.start().warn(message);
 
-			expect(context.logger.warn.calledOnce).ok;
-			expect(context.logger.warn.calledWithExactly(message));
+			expect(console.warn.calledOnce).ok;
+			expect(console.warn.calledWithExactly(message));
 			expect(context.out.calledOnce).ok
 			expect(context.out.calledWithExactly(message, 'log')).ok;
 		})
@@ -209,7 +208,7 @@ describe('Action module', function() {
 			} catch (e) {
 				ex = e;
 			}
-			expect(ex).to.exist();
+			expect(ex).to.exist;
 		});
 		it('returns itself for chaining', function() {
 			var message = 'An error message';
@@ -221,8 +220,8 @@ describe('Action module', function() {
 			var message = 'A log message';
 			action.start().error(message);
 
-			expect(context.logger.error.calledOnce).ok;
-			expect(context.logger.error.calledWithExactly(message));
+			expect(console.error.calledOnce).ok;
+			expect(console.error.calledWithExactly(message));
 			expect(context.out.calledOnce).ok
 			expect(context.out.calledWithExactly(message, 'error')).ok;
 		})

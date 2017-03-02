@@ -67,7 +67,7 @@ describe('Tasks module', function() {
 			} catch (e) {
 				ex = e;
 			}
-			expect(ex).to.exist();
+			expect(ex).to.exist;
 		});
 		it('exposes 2 functions and a enum', function() {
 			expect(tasks).to.have.keys(['save', 'clean', 'status']);
